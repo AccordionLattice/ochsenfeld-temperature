@@ -1,23 +1,46 @@
 from flask import Flask, render_template
+import os
+from datetime import datetime, timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Import your existing update_data function(s)
+# Make sure update_data.py defines a function like: def update_data()
+from update_data import update_data  
+
 app = Flask(__name__)
 
+# -------------------------------
+# Config
+# -------------------------------
+CACHE_DURATION = timedelta(hours=12)
+FORECAST_FILE = "cached_forecast.csv"
+VALUES_FILE = "cached_values.csv"
+
+def needs_update(filename):
+    if not os.path.exists(filename):
+        return True
+    last_mod = datetime.fromtimestamp(os.path.getmtime(filename))
+    return datetime.now() - last_mod > CACHE_DURATION
+
+# -------------------------------
+# Route
+# -------------------------------
 @app.route("/")
 def index():
-    # -------------------------------
-    # Load cached data
-    # -------------------------------
-    forecast = pd.read_csv("cached_forecast.csv")
-    forecast["date"] = pd.to_datetime(forecast["date"])
+    # Update data if needed
+    if needs_update(FORECAST_FILE) or needs_update(VALUES_FILE):
+        update_data()  # This downloads new CSVs
 
-    values = pd.read_csv("cached_values.csv")
+    # Load cached data
+    forecast = pd.read_csv(FORECAST_FILE)
+    forecast["date"] = pd.to_datetime(forecast["date"])
+    values = pd.read_csv(VALUES_FILE)
     values["date"] = pd.to_datetime(values["date"])
 
     # -------------------------------
-    # Model
+    # Simulation
     # -------------------------------
     def simulate(params, air, time):
         k_w, k_f, k_s = params
@@ -35,7 +58,6 @@ def index():
         return Tin
 
     k_w, k_f, k_s = 0.00875756, 0.0007412, 0.00011976
-
     merged = pd.concat([values, forecast], ignore_index=True)
     Tin = simulate([k_w, k_f, k_s], merged["value"], merged["date"])
 
@@ -49,10 +71,13 @@ def index():
     plt.axhline(0, color="gray", linestyle="-")
     plt.ylabel("Temperature (°C)")
     plt.legend()
-    plt.xlim(left = merged['date'].min(), right = merged['date'].max())
+    plt.xlim(left=merged['date'].min(), right=merged['date'].max())
     plt.xticks(rotation=30)
     plt.tight_layout()
 
+    # Save plot
+    if not os.path.exists("static"):
+        os.makedirs("static")
     plt.savefig("static/plot.png", dpi=150)
     plt.close()
 
