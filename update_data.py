@@ -3,6 +3,8 @@ import pandas as pd
 from io import StringIO
 from wetterdienst import Settings
 from wetterdienst.provider.dwd.observation import DwdObservationRequest
+from datetime import datetime, timedelta
+
 
 def update_data():
     # -------------------------------
@@ -18,6 +20,8 @@ def update_data():
     # -------------------------------
     # DWD data
     # -------------------------------
+    today = datetime.today().strftime('%Y-%m-%d')
+    startday = (datetime.today() - timedelta(days = 30)).strftime('%Y-%m-%d')
     settings = Settings(
         ts_shape="long",
         ts_humanize=True,
@@ -25,8 +29,8 @@ def update_data():
     )
     request = DwdObservationRequest(
         parameters=[("hourly", "temperature_air", "temperature_air_mean_2m")],
-        start_date="2025-12-01",
-        end_date="2025-12-30",
+        start_date=startday,
+        end_date=today,
         settings=settings
     )
     station = request.filter_by_station_id(station_id=(1161,))
